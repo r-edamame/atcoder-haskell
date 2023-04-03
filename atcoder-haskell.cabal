@@ -1,0 +1,64 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.35.1.
+--
+-- see: https://github.com/sol/hpack
+
+name:           atcoder-haskell
+version:        0.1.0.0
+description:    atcoder challenge with haskell
+homepage:       https://github.com/r-edamame/atcoder-haskell#readme
+bug-reports:    https://github.com/r-edamame/atcoder-haskell/issues
+author:         edamame
+maintainer:     edamame15.r@gmail.com
+copyright:      2023 Author name here
+license:        BSD3
+build-type:     Simple
+
+source-repository head
+  type: git
+  location: https://github.com/r-edamame/atcoder-haskell
+
+executable haskell-exe
+  main-is: Main.hs
+  other-modules:
+      Paths_atcoder_haskell
+  hs-source-dirs:
+      contests
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      QuickCheck >=2.13.2
+    , array >=0.5.4.0
+    , attoparsec >=0.13.2.3
+    , base >=4.7 && <5
+    , bytestring >=0.10.10.0
+    , containers >=0.6.2.1
+    , deepseq >=1.4.4.0
+    , extra >=1.7.1
+    , fgl >=5.7.0.2
+    , hashable >=1.3.0.0
+    , heaps >=0.3.6.1
+    , integer-logarithms >=1.0.3
+    , lens >=4.18.1
+    , massiv >=0.5.1.0
+    , mono-traversable >=1.0.15.1
+    , mtl >=2.2.2
+    , mutable-containers >=0.3.4
+    , mwc-random >=0.14.0.0
+    , parallel >=3.2.2.0
+    , parsec >=3.1.14.0
+    , primitive >=0.7.0.1
+    , psqueues >=0.2.7.2
+    , random >=1.1
+    , reflection >=2.1.5
+    , template-haskell >=2.15.0.0
+    , text >=1.2.4.0
+    , tf-random >=0.5
+    , transformers >=0.5.6.2
+    , unboxing-vector >=0.1.1.0
+    , unordered-containers >=0.2.10.0
+    , utility-ht >=0.0.15
+    , vector >=0.12.1.2
+    , vector-algorithms >=0.8.0.3
+    , vector-th-unbox >=0.2.1.7
+  default-language: Haskell2010
