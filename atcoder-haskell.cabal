@@ -20,8 +20,6 @@ source-repository head
   location: https://github.com/r-edamame/atcoder-haskell
 
 library
-  exposed-modules:
-      Lib
   other-modules:
       Paths_atcoder_haskell
   hs-source-dirs:
