@@ -56,10 +56,13 @@ ghc-options:
 - -Wpartial-fields
 - -Wredundant-constraints
 
+library:
+  source-dirs: contests
+
 executables:
   haskell-exe:
     main:                Main.hs
-    source-dirs:         contests
+    source-dirs:         app
     ghc-options:
     - -threaded
     - -rtsopts
