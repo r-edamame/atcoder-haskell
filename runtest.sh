@@ -1,4 +1,5 @@
 
-source=$1
-stack ghc -- $source.hs -o a.out && oj test && rm a.out $source.hi $source.o
+source=`find . -type f -iregex '.*.hs$'`
+stack ghc -- $source -o a.out && oj test 
+rm *.o *.hi a.out
 
