@@ -37,11 +37,10 @@ import           Debug.Trace (trace)
 
 main :: IO ()
 main = do
-    input <- BS8.getContents
-    let result = flip runInput input $ do
+    result <- flip fmap BS8.getContents $ runInput $ do
         n <- readInt
         as <- readInts n
-        return $ show $ Set.size $ Set.fromList . V.toList $ as
+        return . show . Set.size . Set.fromList . V.toList $ as
     putStrLn result
 
 

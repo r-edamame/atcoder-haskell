@@ -49,10 +49,13 @@ main = do
 
 
 solv :: Int -> V.Vector (Int, Int) -> Int
-solv n g = withUF n $ foldM step 0 g where
-    step c (s, t) = do
-        same <- not <$> uniteUF s t
-        return $ if same then c + 1 else c
+solv n g = runST $ do
+    uf <- newUF n
+    foldM (step uf) 0 g
+    where
+        step uf c (s, t) = do
+            same <- not <$> uniteUF s t uf
+            return $ if same then c + 1 else c
 
 
 -- type aliases
@@ -136,43 +139,38 @@ cumulative = uncurry (flip V.snoc) . mapAccumL (\s a -> (s + a, s)) 0
 ---- UnionFind
 newtype UnionFind s = UnionFind (MV.MVector s Int, MV.MVector s Int, MV.MVector s Int)
 type UFM s a =  ReaderT (UnionFind s) (ST s) a
-withUF :: forall a. Int -> (forall s. UFM s a) -> a
-withUF n m = runST $ do
+newUF :: Int -> ST s (UnionFind s)
+newUF n = do
     par <- V.thaw $ V.iterateN n (+1) 0
     rank <- V.thaw $ V.replicate n 0
-    size <- V.thaw $ V.replicate n 1
-    runReaderT m $ UnionFind (par, rank, size)
-rootUF :: forall s. Int -> UFM s Int
-rootUF x = do
-    UnionFind (par, _, _) <- Reader.ask
-    p <- lift $ MV.read par x
+    siz <- V.thaw $ V.replicate n 1
+    return $ UnionFind (par, rank, siz)
+rootUF :: Int -> UnionFind s -> ST s Int
+rootUF x uf@(UnionFind (par, _, _))= do
+    p <- MV.read par x
     if p == x
         then
             return x
         else do
-            r <- rootUF p
-            lift $ MV.write par x p
+            r <- rootUF p uf
+            MV.write par x p
             return r
-sameUF :: forall s. Int -> Int -> UFM s Bool
-sameUF x y = (==) <$> rootUF x <*> rootUF y
-uniteUF :: forall s. Int -> Int -> UFM s Bool
-uniteUF x y = do
-    UnionFind (par, rank, siz) <- Reader.ask
-    rx <- rootUF x
-    ry <- rootUF y
+sameUF :: Int -> Int -> UnionFind s -> ST s Bool
+sameUF x y uf = (==) <$> rootUF x uf <*> rootUF y uf
+uniteUF :: Int -> Int -> UnionFind s -> ST s Bool
+uniteUF x y uf@(UnionFind (par, rank, siz)) = do
+    (rx, ry) <- (,) <$> rootUF x uf <*> rootUF y uf
     if rx == ry then
         return False
-    else lift $ do
+    else do
         cr <- (<) <$> MV.read rank rx <*> MV.read rank ry
         let (rx', ry') = if cr then (ry, rx) else (rx, ry)
         MV.write par ry' rx'
         whenM ((==) <$> MV.read rank rx <*> MV.read rank ry) $ MV.modify rank (+1) rx'
         MV.read siz ry >>= \c -> MV.modify siz (+c) rx
         return True
-sizeUF :: forall s. Int -> UFM s Int
-sizeUF x = do
-    UnionFind (_, _, siz) <- Reader.ask
-    lift $ MV.read siz x
+sizeUF :: Int -> UnionFind s -> ST s Int
+sizeUF x uf@(UnionFind(_, _, siz)) = MV.read siz x
 ---- undirected graph
 udg :: Int -> V.Vector (Int, Int) -> V.Vector (V.Vector Int)
 udg n v = V.accumulate (flip V.cons) (V.replicate n V.empty) to where

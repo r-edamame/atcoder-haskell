@@ -8,7 +8,7 @@
 module Main (main) where
 
 import           Control.Applicative ((<|>))
-import           Control.Monad (replicateM, forM_, when)
+import           Control.Monad (replicateM, forM_, when, foldM)
 import           Control.Monad.Extra (whenM)
 import           Control.Monad.IO.Class (MonadIO(liftIO))
 import           Control.Monad.Reader (ReaderT(runReaderT))
@@ -17,7 +17,10 @@ import           Control.Monad.ST (ST, runST)
 import           Control.Monad.State.Strict (StateT (StateT), evalStateT)
 import qualified Control.Monad.State.Class as State
 import           Control.Monad.Trans.Class (lift)
+import           Control.Monad.Writer.Strict (WriterT(runWriterT), Writer, runWriter)
+import qualified Control.Monad.Writer.Class as Writer
 import           Data.Attoparsec.ByteString.Char8 (isDigit)
+import qualified Data.Bifunctor as BF
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
@@ -39,8 +42,29 @@ main :: IO ()
 main = do
     input <- BS8.getContents
     let result = flip runInput input $ do
-    putStrLn result
+        n <- readInt
+        g <- udg n <$> readTs1 (n-1)
+        return . BS8.unlines . map showT . solv $ g
+    BS8.putStr result
 
+solv :: G Int -> [(Int, Int)]
+solv g = dfs g 0
+
+dfs :: G Int -> Int -> [(Int, Int)]
+dfs g i = snd $ go 1 (-1) i where
+    go :: Int -> Int -> Int -> (Int, [(Int, Int)])
+    go offset parent t
+        | parent /= (-1) && V.length (g!t) == 1 = (offset, [(offset, offset)])
+        | otherwise =
+            let (upper, l) = runWriter $ foldM (step parent t) offset (g!t) in
+                (upper-1, (offset, upper-1):l)
+    step :: Int -> Int -> Int -> Int -> Writer [(Int, Int)] Int
+    step gp parent offset s
+        | s == gp = return offset
+        | otherwise = do
+            let (n, l) = trace "step" $ go offset parent s
+            Writer.tell l
+            return (n+1)
 
 -- type aliases
 type Mat a = (V.Vector a, Int -> Int -> Int)
@@ -71,7 +95,6 @@ readIntMat w h = (, \x y -> w*y + x) <$> V.replicateM (h*w) readInt
 readIntMat1 :: Int -> Int -> Input (Mat Int)
 readIntMat1 w h = (, \x y -> w*y + x) <$> V.replicateM (h*w) readInt1
 readCharMat :: Int -> Int -> Input (Mat Char)
--- readCharMat w h = V.replicateM h (V.replicateM w readChar)
 readCharMat w h = (, \x y -> w*y + x) <$> V.replicateM (h*w) readChar
 readTs :: Int -> Input (V.Vector (Int, Int))
 readTs n = V.replicateM n ((,) <$> readInt <*> readInt)
@@ -97,6 +120,10 @@ showIntMat :: Int -> Int -> V.Vector Int -> ByteString
 showIntMat  w h = BS.init . BS8.unlines . map (BS8.unwords . V.foldr (\i r -> showBS i : r) []) . takes w
 showBS :: Show a => a -> ByteString
 showBS = BS8.pack . show
+showT :: Show a => (a, a) -> ByteString
+showT = BS8.pack . unwords . map show . t2l
+t2l :: (a, a) -> [a]
+t2l (a, b) = [a, b]
 unconsV :: V.Vector a -> Maybe (a, V.Vector a)
 unconsV v
     | V.length v == 0 = Nothing
@@ -161,7 +188,8 @@ sizeUF x = do
     UnionFind (_, _, siz) <- Reader.ask
     lift $ MV.read siz x
 ---- undirected graph
-udg :: Int -> V.Vector (Int, Int) -> V.Vector (V.Vector Int)
+type G a = V.Vector (V.Vector a)
+udg :: Int -> V.Vector (Int, Int) -> G Int
 udg n v = V.accumulate (flip V.cons) (V.replicate n V.empty) to where
     to :: V.Vector (Int, Int)
     to = v >>= \(x, y) -> [(x, y), (y, x)]
