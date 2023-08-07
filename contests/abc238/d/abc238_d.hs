@@ -8,7 +8,7 @@
 module Main (main) where
 
 import           Control.Applicative ((<|>))
-import           Control.Monad (replicateM, forM_, when)
+import           Control.Monad (replicateM, forM_, when, foldM)
 import           Control.Monad.Extra (whenM)
 import           Control.Monad.IO.Class (MonadIO(liftIO))
 import           Control.Monad.Reader (ReaderT(runReaderT))
@@ -17,7 +17,10 @@ import           Control.Monad.ST (ST, runST)
 import           Control.Monad.State.Strict (StateT (StateT), evalStateT)
 import qualified Control.Monad.State.Class as State
 import           Control.Monad.Trans.Class (lift)
+import           Control.Monad.Trans.Cont (ContT(runContT), Cont, cont, runCont)
+import qualified Control.Monad.Trans.Cont as Cont
 import           Data.Attoparsec.ByteString.Char8 (isDigit)
+import           Data.Bits ((.&.), (.|.), shiftL, shiftR, xor)
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
@@ -25,6 +28,7 @@ import           Data.ByteString.Internal (c2w, w2c, isSpaceWord8)
 import           Data.ByteString.Builder as BB
 import           Data.ByteString.Builder.Internal as BB
 import           Data.Char (intToDigit, digitToInt)
+import           Data.Foldable (foldrM, foldlM)
 import qualified Data.List as L
 import           Data.Maybe (fromJust)
 import           Data.Set (Set)
@@ -38,14 +42,18 @@ import           Debug.Trace (trace)
 main :: IO ()
 main = do
     result <- flip fmap BS8.getContents $ runInput $ do
-        return $ solv
-    putStrLn result
+        t <- readInt
+        qs <- readTs t
+        return $ solv <$> qs
+    putStr . unlines . V.toList . V.map yesno $ result
 
--- solv :: 
-solv = undefined
+solv :: (Int, Int) -> Bool
+solv (a, s) = (s >= a) && V.all (\d -> (c .&. d) == 0) (digits 60) where
+    c = (s - 2*a) .&. a
 
-debug :: Show a => a -> a
-debug a = trace (show a) a
+debug :: Show a => String -> a -> a
+-- debug label a = trace (label ++ ": " ++ show a) a
+debug label = id
 
 -- type aliases
 type Mat a = (V.Vector a, Int -> Int -> Int)
@@ -175,4 +183,14 @@ rle = V.fromList . V.foldr step [] where
     step a l@((x, n):xs)
         | a == x = (a, n+1):xs
         | otherwise = (a, 1):l
+---- exitable fold
+foldlE :: Foldable f => (a -> b -> Either r a) -> a -> f b -> (a -> r) -> r
+foldlE f d xs = runCont (foldlM (\a -> either quit return . f a) d xs)
+foldrE :: Foldable f => (a -> b -> Either r b) -> b -> f a -> (b -> r) -> r
+foldrE f d xs = runCont (foldrM (\a -> either quit return . f a) d xs)
+quit :: r -> Cont r a
+quit = cont . const
+---- bits
+digits :: Int -> V.Vector Int
+digits d = V.iterateN d (`shiftL`1) 1
 

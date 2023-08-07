@@ -49,14 +49,14 @@ main = do
     putStrLn result
 
 solv :: Int -> Mint
-solv n = go 1 (Mint 0) where
+solv n = go 1 0 where
     go :: Int -> Mint -> Mint
     go d m =
-        let u = debug "u" (((10*d-1) `min` debug "n" n)-(debug "d" d-1))
-            m' = debug "m'" $ (Mint u*(Mint u + Mint 1)) * Mint 499122177
+        let u = debug "u" $ fromIntegral (((10*d-1) `min` n)-(d-1))
+            m' = debug "m'" $ (u*(u + 1)) `div` 2
+            ans = m + m'
         in
-            if n >= d*10 then go (d*10) (m + m') else m + m'
-
+            if n >= d*10 then go (d*10) ans else ans
 
 
 
@@ -65,7 +65,8 @@ solv n = go 1 (Mint 0) where
 ---------------------
 
 debug :: Show a => String -> a -> a
-debug label a = trace (label ++ ": " ++ show a) a
+debug label = id
+-- debug label a = trace (label ++ ": " ++ show a) a
 
 -- type aliases
 type Mat a = (V.Vector a, Int -> Int -> Int)
@@ -195,27 +196,4 @@ rle = V.fromList . V.foldr step [] where
     step a l@((x, n):xs)
         | a == x = (a, n+1):xs
         | otherwise = (a, 1):l
----- Mint
-newtype Mint = Mint Int deriving (Eq, Ord)
-mintMod :: Int
-mintMod = 998244353
-instance Show Mint where
-    show (Mint n) = show n
-instance Enum Mint where
-    succ (Mint n) = Mint (succ n `mod` mintMod)
-    pred (Mint n) = Mint (pred n `mod` mintMod)
-    toEnum n = Mint (n `mod` mintMod)
-    fromEnum (Mint n) = n
-instance Num Mint where
-    (Mint m) + (Mint n) = Mint ((m + n) `mod` mintMod)
-    (Mint m) - (Mint n) = Mint ((m - n) `mod` mintMod)
-    (Mint m) * (Mint n) = Mint ((m * n) `mod` mintMod)
-    negate (Mint m) = Mint ((mintMod - m) `mod` mintMod)
-    abs = id
-    signum = const $ Mint 1
-    fromInteger n = Mint (fromIntegral n `mod` mintMod)
-instance Real Mint where
-    toRational (Mint n) = toInteger n % 1
-instance Integral Mint where
-    quotRem (Mint m) (Mint n) = let (q, r) = quotRem m n in (fromIntegral q, fromIntegral r)
-    toInteger (Mint n) = toInteger n
+

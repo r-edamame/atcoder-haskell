@@ -1,0 +1,50 @@
+{
+  "contest": {
+    "id": "arc159",
+    "title": "AtCoder Regular Contest 159",
+    "url": "https://atcoder.jp/contests/arc159"
+  },
+  "tasks": [
+    {
+      "id": "arc159_a",
+      "label": "A",
+      "title": "Copy and Paste Graph",
+      "url": "https://atcoder.jp/contests/arc159/tasks/arc159_a",
+      "directory": {
+        "path": "a",
+        "testdir": "test",
+        "submit": "main.hs"
+      }
+    },
+    {
+      "id": "arc159_b",
+      "label": "B",
+      "title": "GCD Subtraction",
+      "url": "https://atcoder.jp/contests/arc159/tasks/arc159_b"
+    },
+    {
+      "id": "arc159_c",
+      "label": "C",
+      "title": "Permutation Addition",
+      "url": "https://atcoder.jp/contests/arc159/tasks/arc159_c"
+    },
+    {
+      "id": "arc159_d",
+      "label": "D",
+      "title": "LIS 2",
+      "url": "https://atcoder.jp/contests/arc159/tasks/arc159_d"
+    },
+    {
+      "id": "arc159_e",
+      "label": "E",
+      "title": "Difference Sum Query",
+      "url": "https://atcoder.jp/contests/arc159/tasks/arc159_e"
+    },
+    {
+      "id": "arc159_f",
+      "label": "F",
+      "title": "Good Division",
+      "url": "https://atcoder.jp/contests/arc159/tasks/arc159_f"
+    }
+  ]
+}
