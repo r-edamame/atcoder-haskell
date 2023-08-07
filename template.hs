@@ -18,17 +18,18 @@ import           Control.Monad.Cont.Class (MonadCont(callCC))
 import           Control.Monad.Extra (whenM)
 import           Control.Monad.IO.Class (MonadIO(liftIO))
 import           Control.Monad.Primitive (PrimMonad(PrimState), liftPrim)
-import           Control.Monad.Reader (ReaderT(runReaderT))
+import           Control.Monad.Reader (ReaderT(ReaderT, runReaderT))
 import qualified Control.Monad.Reader.Class as Reader
 import           Control.Monad.ST (ST, runST)
-import           Control.Monad.State.Strict (StateT (StateT), evalStateT)
+import           Control.Monad.State.Strict (StateT (StateT, runStateT), execStateT, evalStateT, State, runState, evalState, execState)
 import qualified Control.Monad.State.Class as State
 import           Control.Monad.Trans.Class (lift)
 import           Control.Monad.Trans.Cont (ContT(ContT, runContT), evalContT, Cont, cont, runCont, evalCont)
 import           Control.Monad.Trans.Maybe (MaybeT(MaybeT, runMaybeT))
 import           Control.Monad.Writer.Class as Writer
-import           Control.Monad.Writer.Strict (WriterT(runWriterT), Writer, runWriter, execWriter)
+import           Control.Monad.Writer.Strict (WriterT(runWriterT), execWriterT, Writer, runWriter, execWriter)
 import           Data.Attoparsec.ByteString.Char8 (isDigit)
+import qualified Data.Bifunctor as BF
 import           Data.Bits (shiftL, shiftR, (.&.), (.|.), xor)
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
@@ -38,13 +39,14 @@ import           Data.ByteString.Builder as BB
 import           Data.ByteString.Builder.Internal as BB
 import           Data.Char (intToDigit, digitToInt, isSpace)
 import           Data.Functor.Identity (Identity(runIdentity))
-import           Data.Foldable (foldrM, foldlM, toList, traverse_)
+import           Data.Foldable (foldrM, foldlM, toList, traverse_, maximumBy, minimumBy)
 import           Data.Hashable (Hashable)
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HMap
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as HSet
 import qualified Data.List as L
+import qualified Data.List.Extra as L
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import           Data.Maybe (fromJust, fromMaybe)
@@ -54,7 +56,7 @@ import           Data.Set (Set)
 import qualified Data.Set as Set
 import           Data.STRef (STRef, newSTRef, readSTRef, modifySTRef, writeSTRef)
 import           Data.Traversable (traverse, mapAccumR, mapAccumL)
-import           Data.Vector ((!))
+import           Data.Vector ((!), (!?))
 import qualified Data.Vector as V
 import qualified Data.Vector.Algorithms.Heap as VH
 import qualified Data.Vector.Mutable as MV
@@ -74,12 +76,19 @@ solv = undefined
 ---- library ----
 -----------------
 
+-- debugging
+debugging = True
 debug :: Show a => String -> a -> a
-debug label a = trace (concat @[] [label, ": ", show a]) a
--- debug label = id
+debug label a
+    | debugging = trace (concat @[] [label, ": ", show a]) a
+    | otherwise = a
+debugIntMat :: String -> Mat Int -> Mat Int
+debugIntMat label mat
+    | debugging = trace (concat @[] [label, "\n", BS8.unpack $ showIntMat mat]) mat
+    | otherwise = mat
 
 -- type aliases
-type Mat a = (V.Vector a, Int -> Int -> Int)
+type Mat a = V.Vector (V.Vector a)
 
 -- IO
 ---- Monad For Parse Input
@@ -104,12 +113,11 @@ readInts n = V.replicateM n readInt
 readInts1 :: Int -> Input (V.Vector Int)
 readInts1 n = V.replicateM n readInt1
 readIntMat :: Int -> Int -> Input (Mat Int)
-readIntMat w h = (, \x y -> w*y + x) <$> V.replicateM (h*w) readInt
+readIntMat w h = V.replicateM h $ V.replicateM w readInt
 readIntMat1 :: Int -> Int -> Input (Mat Int)
-readIntMat1 w h = (, \x y -> w*y + x) <$> V.replicateM (h*w) readInt1
+readIntMat1 w h = V.replicateM h $ V.replicateM w readInt1
 readCharMat :: Int -> Int -> Input (Mat Char)
--- readCharMat w h = V.replicateM h (V.replicateM w readChar)
-readCharMat w h = (, \x y -> w*y + x) <$> V.replicateM (h*w) readChar
+readCharMat w h = V.replicateM h $ V.replicateM w readChar
 readT :: Input (Int, Int)
 readT = (,) <$> readInt <*> readInt
 readT1 :: Input (Int, Int)
@@ -132,10 +140,10 @@ toCharVector = V.fromList . BS8.unpack
 yesno :: Bool -> [Char]
 yesno True = "Yes"
 yesno False = "No"
-showCharMat :: Int -> Int -> V.Vector Char -> ByteString
-showCharMat w h = BS.init . BS8.unlines . map (fst . BS8.unfoldrN w unconsV) . takes w
-showIntMat :: Int -> Int -> V.Vector Int -> ByteString
-showIntMat  w h = BS.init . BS8.unlines . map (BS8.unwords . V.foldr (\i r -> showBS i : r) []) . takes w
+showCharMat :: Mat Char -> ByteString
+showCharMat = BS.init . BS8.unlines . map (BS8.unfoldr unconsV) . toList
+showIntMat :: Mat Int -> ByteString
+showIntMat = BS.init . BS8.unlines . map (BS8.unwords . V.foldr (\i r -> showBS i : r) []) . toList
 showBS :: Show a => a -> ByteString
 showBS = BS8.pack . show
 showT :: Show a => (a, a) -> ByteString
@@ -150,6 +158,21 @@ takes :: Int -> V.Vector a -> [V.Vector a]
 takes n v
     | V.length v == 0 = []
     | otherwise = let (s, e) = V.splitAt n v in s : takes n e
+
+nothingIf :: (a -> Bool) -> a -> Maybe a
+nothingIf c a = if c a then Nothing else Just a
+(!*) :: PrimMonad m => MV.MVector (PrimState m) a -> Int -> m (Maybe a)
+m !* i = traverse (MV.read m) $ nothingIf (outOf m) i
+(!*=) :: PrimMonad m => MV.MVector (PrimState m) a -> (Int, a) -> m (Maybe ())
+m !*= (i, a) = traverse (flip (MV.write m) a) $ nothingIf (outOf m) i
+(!*%) :: PrimMonad m => MV.MVector (PrimState m) a -> (Int, a -> a) -> m (Maybe ())
+m !*% (i, f) = traverse (MV.modify m f) $ nothingIf (outOf m) i
+class Range r where
+    outOf :: r -> Int -> Bool
+instance Range (V.Vector a) where
+    outOf v i = i<0 || V.length v<=i
+instance Range (MV.MVector s a) where
+    outOf v i = i<0 || MV.length v<=i
 
 -- Data
 ---- Heap
@@ -240,8 +263,11 @@ upperBound lower upper sat = go (lower-1) (upper+1) where
         | abs (ok-ng) > 1 = let mid = (ng+ok) `div` 2 in if sat mid then go ng mid else go mid ok
         | otherwise = if ok == upper+1 then Nothing else Just ok
 ---- cumulative
-cumulative :: V.Vector Int -> V.Vector Int
-cumulative = uncurry (flip V.snoc) . mapAccumL (\s a -> (s + a, s)) 0
+cumulative :: (a -> a -> a) -> a -> V.Vector a -> V.Vector a
+cumulative f d = uncurry (flip V.snoc) . mapAccumL (\s a -> (f s a, s)) d
+cumulative2d :: (a -> a -> a) -> a -> Mat a -> Mat a
+cumulative2d f d mat = uncurry (flip V.snoc) $ mapAccumL (\s a -> (V.zipWith f s a, s)) (V.replicate (V.length (hs!0)) d) hs where
+    hs = V.map (cumulative f d) mat
 ---- UnionFind
 newtype UnionFind s = UnionFind (MV.MVector s Int, MV.MVector s Int, MV.MVector s Int)
 newUF :: Int -> ST s (UnionFind s)
@@ -327,19 +353,10 @@ runBfsM_ bfs = runBfsM bfs ()
 queue :: Monad m => q -> BFS r q m ()
 queue !q = State.modify (:|> q)
 ---- Heap DP
-type HeapDP r v s m a = ContT r (ReaderT (MHeap s v) m) a
-runHeapDP :: (PrimMonad m, Ord v, Hashable v, Foldable f) => HeapOrder -> (v -> HeapDP r v (PrimState m) m (f v)) -> [v] -> r -> m r
-runHeapDP ho dp initial d = do
-    heap <- newHeap ho
-    traverse_ (insertHeap heap) initial
-    runReaderT (evalContT (go heap HSet.empty)) heap
-    where
-        go heap used = do
-            mp <- popHeap heap
-            case mp of
-                Nothing -> quit d
-                Just p -> if HSet.member p used then go heap used else do
-                    nexts <- dp p
-                    forM_ nexts $ \n -> when (not $ HSet.member n used) (insertHeap heap n)
-                    go heap (HSet.insert p used)
-
+runHeapDP :: (Monad m, Ord a) => (a -> ContT r m [a]) -> [a] -> r -> m r
+runHeapDP f initial r = runContT (go (Set.fromList initial)) (const (return r)) where
+    go set = do
+        if Set.null set then return () else do
+            let (a, set') = Set.deleteFindMin set
+            nexts <- f a
+            go (foldr Set.insert set' nexts)
