@@ -17,7 +17,7 @@
 #
 # resolver: ./custom-snapshot.yaml
 # resolver: https://example.com/snapshots/2018-01-01.yaml
-resolver: lts-16.11
+resolver: lts-21.6
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -39,7 +39,16 @@ packages:
 # - git: https://github.com/commercialhaskell/stack.git
 #   commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a
 #
-# extra-deps: []
+extra-deps:
+  - bifunctors-5.6.1@sha256:686c0163a64c136226c1f6c58df7711af7f374c78c475e4b645f6e6b7ae39a38,3273
+  - exceptions-0.10.7@sha256:60ccc2277f8fa98a1a03c42afd9c589ba33ce208eaaef7d69bfbb42ce09d1816,2803
+  - free-5.2@sha256:132b5fa680fffaed45603be3291549b65390dc6fec900839f322f87f8d35fc3e,4176
+  - megaparsec-9.4.1@sha256:200835a92db40df881db55f6f95b25b7d41ecd762c1d7479dcff9dea0f09b782,3219
+  - mtl-2.3.1@sha256:5377696d7315e2ef31a8d15d67b22d733c20cac2caf8b26756ff8524c8217e6d,1868
+  - process-1.6.17.0@sha256:49d8a7f372d35363011591b253cae4c8db8b9ec594590448e20b7bed7acaee98,2845
+  - semigroupoids-6.0.0.1@sha256:3ca506912c2e1fe97930d1565a2eebb608de6bc7f49736119609d6a78058dc13,7450
+  - transformers-0.6.1.1@sha256:80d128763c6965dfcddca2155b3dec3bb1970d476f0c8cceb4bb28608ab75e7c,3243
+  - parsec-3.1.16.1
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

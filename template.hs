@@ -9,6 +9,10 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiWayIf #-}
 
+{-# OPTIONS_GHC -Wno-unused-imports #-}
+{-# OPTIONS_GHC -Wno-unused-local-binds #-}
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
+
 module Main (main) where
 
 import           Control.Applicative ((<|>))
@@ -28,7 +32,6 @@ import           Control.Monad.Trans.Cont (ContT(ContT, runContT), evalContT, Co
 import           Control.Monad.Trans.Maybe (MaybeT(MaybeT, runMaybeT))
 import           Control.Monad.Writer.Class as Writer
 import           Control.Monad.Writer.Strict (WriterT(runWriterT), execWriterT, Writer, runWriter, execWriter)
-import           Data.Attoparsec.ByteString.Char8 (isDigit)
 import qualified Data.Bifunctor as BF
 import           Data.Bits (shiftL, shiftR, (.&.), (.|.), xor)
 import           Data.ByteString (ByteString)
@@ -37,7 +40,7 @@ import qualified Data.ByteString.Char8 as BS8
 import           Data.ByteString.Internal (c2w, w2c, isSpaceWord8)
 import           Data.ByteString.Builder as BB
 import           Data.ByteString.Builder.Internal as BB
-import           Data.Char (intToDigit, digitToInt, isSpace)
+import           Data.Char (intToDigit, digitToInt, isSpace, isDigit)
 import           Data.Functor.Identity (Identity(runIdentity))
 import           Data.Foldable (foldrM, foldlM, toList, traverse_, maximumBy, minimumBy)
 import           Data.Hashable (Hashable)
@@ -77,6 +80,7 @@ solv = undefined
 -----------------
 
 -- debugging
+debugging :: Bool
 debugging = True
 debug :: Show a => String -> a -> a
 debug label a
@@ -96,6 +100,7 @@ type Input a = StateT ByteString (MaybeT IO) a
 runInput :: Input () -> IO ()
 runInput i = BS8.getContents >>= (fromJust<$>) . runMaybeT . evalStateT i
 ---- util
+dropSpaces :: ByteString -> ByteString
 dropSpaces = BS.dropWhile isSpaceWord8
 ---- Reader
 readInt :: Input Int
@@ -186,7 +191,7 @@ newHeap o = do
     v <- MV.new 8
     heap <- liftPrim $ newSTRef (v, 0)
     return $ MHeap (heap, cmp)
-insertHeap :: (PrimMonad m, Ord a) => MHeap (PrimState m) a -> a -> m ()
+insertHeap :: PrimMonad m => MHeap (PrimState m) a -> a -> m ()
 insertHeap (MHeap (heap, cmp)) a = do
     (v, l) <- do
         (v', l') <- liftPrim $ readSTRef heap
@@ -196,7 +201,7 @@ insertHeap (MHeap (heap, cmp)) a = do
             return (v'', l')
     VH.heapInsert cmp v 0 l a
     liftPrim $ modifySTRef heap (_2%~succ)
-popHeap :: (PrimMonad m, Ord a) => MHeap (PrimState m) a -> m (Maybe a)
+popHeap :: PrimMonad m => MHeap (PrimState m) a -> m (Maybe a)
 popHeap (MHeap (heap, cmp)) = do
     (v, l) <- liftPrim $ readSTRef heap
     if l == 0 then
@@ -206,7 +211,7 @@ popHeap (MHeap (heap, cmp)) = do
         liftPrim $ modifySTRef heap (_2%~pred)
         VH.pop cmp v 0 (l-1)
         return (Just a)
-sizeHeap :: (PrimMonad m, Ord a) => MHeap (PrimState m) a -> m Int
+sizeHeap :: PrimMonad m => MHeap (PrimState m) a -> m Int
 sizeHeap (MHeap (heap, _)) = snd <$> liftPrim (readSTRef heap)
 ---- extensible vector
 newtype GV s a = GV (STRef s (MV.MVector s a, Int, Int))
@@ -301,7 +306,7 @@ uniteUF x y uf@(UnionFind (par, rank, siz)) = do
         MV.read siz ry >>= \c -> MV.modify siz (+c) rx
         return True
 sizeUF :: Int -> UnionFind s -> ST s Int
-sizeUF x uf@(UnionFind(_, _, siz)) = MV.read siz x
+sizeUF x (UnionFind(_, _, siz)) = MV.read siz x
 ---- undirected graph
 udg :: Int -> V.Vector (Int, Int) -> V.Vector (V.Vector Int)
 udg n v = V.accumulate (flip V.cons) (V.replicate n V.empty) to where
@@ -333,7 +338,7 @@ digits :: Int -> V.Vector Int
 digits d = V.iterateN d (`shiftL`1) 1
 ---- BFS
 type BFS r q m a = ContT r (StateT (Seq q) m) a
-runBfsM :: (Monad m, Eq q, Hashable q) => (q' -> BFS r q' m ()) -> r -> (q' -> q) -> Seq q' -> m r
+runBfsM :: (Monad m, Hashable q) => (q' -> BFS r q' m ()) -> r -> (q' -> q) -> Seq q' -> m r
 runBfsM bfs ir uq = evalStateT (runContT (go HSet.empty) (const (return ir))) where
     -- go :: Monad m => HashSet q -> r -> BFS r q m r
     go used = do
@@ -346,9 +351,9 @@ runBfsM bfs ir uq = evalStateT (runContT (go HSet.empty) (const (return ir))) wh
                     State.put q'
                     bfs a
                     go (HSet.insert (uq a) used)
-runBfs :: (Eq q, Hashable q) => (q' -> BFS r q' Identity ()) -> r -> (q' -> q) -> Seq q' -> r
+runBfs :: Hashable q => (q' -> BFS r q' Identity ()) -> r -> (q' -> q) -> Seq q' -> r
 runBfs bfs r uq = runIdentity . runBfsM bfs r uq
-runBfsM_ :: (Monad m, Eq q, Hashable q) => (q' -> BFS () q' m ()) -> (q' -> q) -> Seq q' -> m ()
+runBfsM_ :: (Monad m, Hashable q) => (q' -> BFS () q' m ()) -> (q' -> q) -> Seq q' -> m ()
 runBfsM_ bfs = runBfsM bfs ()
 queue :: Monad m => q -> BFS r q m ()
 queue !q = State.modify (:|> q)
