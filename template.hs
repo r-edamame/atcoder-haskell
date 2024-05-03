@@ -8,10 +8,16 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE OverloadedRecordUpdate #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE CPP #-}
 
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 {-# OPTIONS_GHC -Wno-unused-local-binds #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE InstanceSigs #-}
 
 module Main (main) where
 
@@ -64,6 +70,7 @@ import qualified Data.Vector as V
 import qualified Data.Vector.Algorithms.Heap as VH
 import qualified Data.Vector.Mutable as MV
 import           Debug.Trace (trace)
+import           GHC.Records (HasField(..))
 
 ----------------
 ---- solver ----
@@ -71,8 +78,9 @@ import           Debug.Trace (trace)
 
 main :: IO ()
 main = runInput $ do
-    liftIO . putStrLn $ solv
+    liftIO $ print $ solv ()
 
+-- solv ::
 solv = undefined
 
 -----------------
@@ -81,7 +89,11 @@ solv = undefined
 
 -- debugging
 debugging :: Bool
+#ifndef ATCODER
 debugging = True
+#elif
+debugging = False
+#endif
 debug :: Show a => String -> a -> a
 debug label a
     | debugging = trace (concat @[] [label, ": ", show a]) a
@@ -92,6 +104,8 @@ debugIntMat label mat
     | otherwise = mat
 
 -- type aliases
+type VI = V.Vector Int
+type VC = V.Vector Char
 type Mat a = V.Vector (V.Vector a)
 
 -- IO
@@ -113,9 +127,9 @@ readWord :: Input ByteString
 readWord = StateT $ (\(a, b) -> if BS.length a == 0 then MaybeT (pure Nothing) else MaybeT (pure $ Just (a, b))) . BS.break isSpaceWord8 . dropSpaces
 readWords :: Int -> Input (V.Vector ByteString)
 readWords n = V.replicateM n readWord
-readInts :: Int -> Input (V.Vector Int)
+readInts :: Int -> Input VI
 readInts n = V.replicateM n readInt
-readInts1 :: Int -> Input (V.Vector Int)
+readInts1 :: Int -> Input VI
 readInts1 n = V.replicateM n readInt1
 readIntMat :: Int -> Int -> Input (Mat Int)
 readIntMat w h = V.replicateM h $ V.replicateM w readInt
@@ -179,6 +193,23 @@ instance Range (V.Vector a) where
 instance Range (MV.MVector s a) where
     outOf v i = i<0 || MV.length v<=i
 
+instance HasField "len" [a] Int where
+    getField = length
+
+instance HasField "len" (MV.MVector s a) Int where
+    getField = MV.length
+instance HasField "at" (V.Vector a) (Int -> a) where
+    getField = (V.!)
+
+instance HasField "at" (MV.MVector s a) (Int -> ST s a) where
+    getField = MV.read
+
+instance HasField "set" (MV.MVector s a) (Int -> a -> ST s ()) where
+    getField = MV.write
+
+instance HasField "modify" (MV.MVector s a) (Int -> (a -> a) -> ST s ()) where
+    getField mv = flip $ MV.modify mv
+
 -- Data
 ---- Heap
 data HeapOrder = HeapDesc | HeapAsc
@@ -191,56 +222,55 @@ newHeap o = do
     v <- MV.new 8
     heap <- liftPrim $ newSTRef (v, 0)
     return $ MHeap (heap, cmp)
-insertHeap :: PrimMonad m => MHeap (PrimState m) a -> a -> m ()
-insertHeap (MHeap (heap, cmp)) a = do
-    (v, l) <- do
-        (v', l') <- liftPrim $ readSTRef heap
-        if l' < MV.length v' then return (v', l') else do
-            v'' <- MV.grow v' (MV.length v')
-            liftPrim $ writeSTRef heap (v'', l')
-            return (v'', l')
-    VH.heapInsert cmp v 0 l a
-    liftPrim $ modifySTRef heap (_2%~succ)
-popHeap :: PrimMonad m => MHeap (PrimState m) a -> m (Maybe a)
-popHeap (MHeap (heap, cmp)) = do
-    (v, l) <- liftPrim $ readSTRef heap
-    if l == 0 then
-        return Nothing
-    else do
-        a <- MV.read v 0
-        liftPrim $ modifySTRef heap (_2%~pred)
-        VH.pop cmp v 0 (l-1)
-        return (Just a)
-sizeHeap :: PrimMonad m => MHeap (PrimState m) a -> m Int
-sizeHeap (MHeap (heap, _)) = snd <$> liftPrim (readSTRef heap)
+instance HasField "insert" (MHeap s a) (a -> ST s ()) where
+    getField (MHeap (heap, cmp)) a = do
+        (v, l) <- do
+            (v', l') <- readSTRef heap
+            if l' < v'.len then return (v', l') else do
+                v'' <- MV.grow v' (MV.length v')
+                writeSTRef heap (v'', l')
+                return (v'', l')
+        VH.heapInsert cmp v 0 l a
+        modifySTRef heap (_2%~succ)
+instance HasField "pop" (MHeap s a) (ST s (Maybe a)) where
+    getField (MHeap (heap, cmp)) = do
+        (v, l) <- readSTRef heap
+        if l == 0 then
+            return Nothing
+        else do
+            a <- v.at 0
+            modifySTRef heap (_2%~pred)
+            VH.pop cmp v 0 (l-1)
+            return (Just a)
+instance HasField "size" (MHeap s a) (ST s Int) where
+    getField (MHeap (heap, _)) = snd <$> readSTRef heap
 ---- extensible vector
 newtype GV s a = GV (STRef s (MV.MVector s a, Int, Int))
 newGV :: ST s (GV s a)
 newGV = MV.new 8 >>= \v -> GV <$> newSTRef (v, 8, 0)
-pushGV :: GV s a -> a -> ST s ()
-pushGV (GV s) a = do
-    (v, cap, siz) <- readSTRef s
-    if cap == siz then do
-        v' <- MV.grow v (cap*7)
-        MV.write v' siz a
-        writeSTRef s (v', debug "cap" (MV.length v'), siz+1)
-    else do
-        MV.write v siz a
-        writeSTRef s (v, cap, siz+1)
-popGV :: GV s a -> ST s (Maybe a)
-popGV (GV s) = do
-    (v, cap, siz) <- readSTRef s
-    if siz == 0 then
-        return Nothing
-    else do
-        a <- MV.read v (siz-1)
-        writeSTRef s (v, cap, siz-1)
-        return (Just a)
-freezeGV :: GV s a -> ST s (V.Vector a)
-freezeGV (GV s) = do
-    (v, _, siz) <- readSTRef s
-    V.freeze . MV.take siz $ v
-    ---- Mutable Vector Control
+instance HasField "push" (GV s a) (a -> ST s ()) where
+    getField (GV s) a = do
+        (v, cap, siz) <- readSTRef s
+        if cap == siz then do
+            v' <- MV.grow v (cap*7)
+            v'.set siz a
+            writeSTRef s (v', v'.len, siz+1)
+        else do
+            v.set siz a
+            writeSTRef s (v, cap, siz+1)
+instance HasField "pop" (GV s a) (ST s (Maybe a)) where
+    getField (GV s) = do
+        (v, cap, siz) <- readSTRef s
+        if siz == 0 then
+            return Nothing
+        else do
+            a <- v.at (siz-1)
+            writeSTRef s (v, cap, siz-1)
+            return (Just a)
+instance HasField "freeze" (GV s a) (ST s (V.Vector a)) where
+    getField (GV s) = do
+        (v, _, siz) <- readSTRef s
+        V.freeze . MV.take siz $ v
 mapMV :: PrimMonad m => (a -> a) -> MV.MVector (PrimState m) a -> m ()
 mapMV f v = go 0 where
     l = MV.length v
@@ -268,11 +298,11 @@ upperBound lower upper sat = go (lower-1) (upper+1) where
         | abs (ok-ng) > 1 = let mid = (ng+ok) `div` 2 in if sat mid then go ng mid else go mid ok
         | otherwise = if ok == upper+1 then Nothing else Just ok
 ---- cumulative
-cumulative :: (a -> a -> a) -> a -> V.Vector a -> V.Vector a
-cumulative f d = uncurry (flip V.snoc) . mapAccumL (\s a -> (f s a, s)) d
+instance HasField "cumulative" (V.Vector a) ((a -> a -> a) -> a -> V.Vector a) where
+    getField v f d = ($v) $ uncurry (flip V.snoc) . mapAccumL (\s a -> (f s a, s)) d
 cumulative2d :: (a -> a -> a) -> a -> Mat a -> Mat a
 cumulative2d f d mat = uncurry (flip V.snoc) $ mapAccumL (\s a -> (V.zipWith f s a, s)) (V.replicate (V.length (hs!0)) d) hs where
-    hs = V.map (cumulative f d) mat
+    hs = V.map (\v -> v.cumulative f d) mat
 ---- UnionFind
 newtype UnionFind s = UnionFind (MV.MVector s Int, MV.MVector s Int, MV.MVector s Int)
 newUF :: Int -> ST s (UnionFind s)
@@ -281,34 +311,35 @@ newUF n = do
     rank <- V.thaw $ V.replicate n 0
     siz <- V.thaw $ V.replicate n 1
     return $ UnionFind (par, rank, siz)
-rootUF :: Int -> UnionFind s -> ST s Int
-rootUF x uf@(UnionFind (par, _, _))= do
-    p <- MV.read par x
-    if p == x
-        then
-            return x
+instance HasField "root" (UnionFind s) (Int -> ST s Int) where
+    getField uf@(UnionFind (par, _, _)) x = do
+        p <- MV.read par x
+        if p == x
+            then
+                return x
+            else do
+                r <- uf.root p
+                MV.write par x p
+                return r
+instance HasField "same" (UnionFind s) (Int -> Int -> ST s Bool) where
+    getField uf x y = (==) <$> uf.root x <*> uf.root y
+-- sameUF :: Int -> Int -> UnionFind s -> ST s Bool
+-- sameUF x y uf = (==) <$> rootUF x uf <*> rootUF y uf
+instance HasField "unite" (UnionFind s) (Int -> Int -> ST s Bool) where
+    getField uf@(UnionFind (par, rank, siz)) x y = do
+        (rx, ry) <- (,) <$> uf.root x <*> uf.root y
+        if rx == ry then
+            return False
         else do
-            r <- rootUF p uf
-            MV.write par x p
-            return r
-sameUF :: Int -> Int -> UnionFind s -> ST s Bool
-sameUF x y uf = (==) <$> rootUF x uf <*> rootUF y uf
-uniteUF :: Int -> Int -> UnionFind s -> ST s Bool
-uniteUF x y uf@(UnionFind (par, rank, siz)) = do
-    (rx, ry) <- (,) <$> rootUF x uf <*> rootUF y uf
-    if rx == ry then
-        return False
-    else do
-        cr <- (<) <$> MV.read rank rx <*> MV.read rank ry
-        let (rx', ry') = if cr then (ry, rx) else (rx, ry)
-        MV.write par ry' rx'
-        whenM ((==) <$> MV.read rank rx <*> MV.read rank ry) $ MV.modify rank (+1) rx'
-        MV.read siz ry >>= \c -> MV.modify siz (+c) rx
-        return True
-sizeUF :: Int -> UnionFind s -> ST s Int
-sizeUF x (UnionFind(_, _, siz)) = MV.read siz x
+            cr <- (<) <$> MV.read rank rx <*> MV.read rank ry
+            let (rx', ry') = if cr then (ry, rx) else (rx, ry)
+            MV.write par ry' rx'
+            whenM ((==) <$> MV.read rank rx <*> MV.read rank ry) $ MV.modify rank (+1) rx'
+            return True
+instance HasField "size" (UnionFind s) (Int -> ST s Int) where
+    getField (UnionFind(_, _, siz)) = MV.read siz
 ---- undirected graph
-udg :: Int -> V.Vector (Int, Int) -> V.Vector (V.Vector Int)
+udg :: Int -> V.Vector (Int, Int) -> Mat Int
 udg n v = V.accumulate (flip V.cons) (V.replicate n V.empty) to where
     to :: V.Vector (Int, Int)
     to = v >>= \(x, y) -> [(x, y), (y, x)]
@@ -316,16 +347,18 @@ hasCircle :: Int -> V.Vector (Int, Int) -> Bool
 hasCircle n es = runST $ evalContT $ do
     uf <- lift $ newUF n
     forM_ es $ \(s, t) -> do
-        whenM (not <$> lift (uniteUF s t uf)) (quit True)
+        whenM (not <$> lift (uf.unite s t)) (quit True)
     return False
 ---- run length encoding
-rle :: Eq a => V.Vector a -> V.Vector (a, Int)
-rle = V.fromList . V.foldr step [] where
-    step :: Eq a => a -> [(a, Int)] -> [(a, Int)]
-    step a [] = [(a, 1)]
-    step a l@((x, n):xs)
-        | a == x = (a, n+1):xs
-        | otherwise = (a, 1):l
+
+instance Eq a => HasField "rle" (V.Vector a) (V.Vector (a, Int)) where
+    getField = V.fromList . V.foldr step [] where
+        step :: Eq a => a -> [(a, Int)] -> [(a, Int)]
+        step a [] = [(a, 1)]
+        step a l@((x, n):xs)
+            | a == x = (a, n+1):xs
+            | otherwise = (a, 1):l
+
 ---- exitable fold
 foldlE :: Foldable f => (a -> b -> Either r a) -> a -> f b -> (a -> r) -> r
 foldlE f d xs = runCont (foldlM (\a -> either quit return . f a) d xs)
@@ -334,8 +367,8 @@ foldrE f d xs = runCont (foldrM (\a -> either quit return . f a) d xs)
 quit :: Monad m => r -> ContT r m a
 quit = ContT . const . return
 ---- bits
-digits :: Int -> V.Vector Int
-digits d = V.iterateN d (`shiftL`1) 1
+instance HasField "digits" Int VI where
+    getField d = V.iterateN d (`shiftL`1) 1
 ---- BFS
 type BFS r q m a = ContT r (StateT (Seq q) m) a
 runBfsM :: (Monad m, Hashable q) => (q' -> BFS r q' m ()) -> r -> (q' -> q) -> Seq q' -> m r

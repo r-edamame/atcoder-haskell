@@ -1,12 +1,12 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.1.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
 name:           atcoder-haskell
 version:        0.1.0.0
-description:    atcoder challenge with haskell
+description:    Please see the README on GitHub at <https://github.com/githubuser/haskell-new-judge#readme>
 homepage:       https://github.com/r-edamame/atcoder-haskell#readme
 bug-reports:    https://github.com/r-edamame/atcoder-haskell/issues
 author:         edamame
@@ -14,6 +14,9 @@ maintainer:     edamame15.r@gmail.com
 copyright:      2023 Author name here
 license:        BSD3
 build-type:     Simple
+extra-source-files:
+    README.md
+    CHANGELOG.md
 
 source-repository head
   type: git
@@ -26,40 +29,72 @@ library
       contests
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
   build-depends:
-      QuickCheck >=2.13.2
-    , array >=0.5.4.0
-    , attoparsec >=0.13.2.3
-    , base >=4.7 && <5
-    , bytestring >=0.10.10.0
-    , containers >=0.6.2.1
-    , deepseq >=1.4.4.0
-    , extra >=1.7.1
-    , fgl >=5.7.0.2
-    , hashable >=1.3.0.0
-    , heaps >=0.3.6.1
-    , integer-logarithms >=1.0.3
-    , lens >=4.18.1
-    , massiv >=0.5.1.0
-    , mono-traversable >=1.0.15.1
-    , mtl >=2.2.2
-    , mutable-containers >=0.3.4
-    , mwc-random >=0.14.0.0
-    , parallel >=3.2.2.0
-    , parsec >=3.1.14.0
-    , primitive >=0.7.0.1
-    , psqueues >=0.2.7.2
-    , random >=1.1
-    , reflection >=2.1.5
-    , template-haskell >=2.15.0.0
-    , text >=1.2.4.0
-    , tf-random >=0.5
-    , transformers >=0.5.6.2
-    , unboxing-vector >=0.1.1.0
-    , unordered-containers >=0.2.10.0
-    , utility-ht >=0.0.15
-    , vector >=0.12.1.2
-    , vector-algorithms >=0.8.0.3
-    , vector-th-unbox >=0.2.1.7
+      adjunctions >=4.4.2 && <4.5
+    , array ==0.5.4.0
+    , base ==4.17.1.0
+    , bifunctors >=5.6.1 && <5.7
+    , binary >=0.8.9.1 && <0.9
+    , bitvec >=1.1.4.0 && <1.2
+    , bytestring >=0.11.4.0 && <0.12
+    , comonad >=5.0.8 && <5.1
+    , containers >=0.6.7 && <0.7
+    , deepseq ==1.4.8.0
+    , exceptions >=0.10.7 && <0.11
+    , extra >=1.7.13 && <1.8
+    , filepath >=1.4.2.2 && <1.4.99
+    , free ==5.2.*
+    , ghc-bignum ==1.3
+    , ghc-boot-th ==9.4.5
+    , ghc-prim ==0.9.0
+    , hashable >=1.4.2.0 && <1.5
+    , heaps ==0.4.*
+    , indexed-traversable >=0.1.2.1 && <0.2
+    , indexed-traversable-instances >=0.1.1.2 && <0.2
+    , integer-gmp ==1.1.*
+    , integer-logarithms >=1.0.3.1 && <1.1
+    , kan-extensions >=5.2.5 && <5.3
+    , lens >=5.2.2 && <5.3
+    , linear-base >=0.3.1 && <0.4
+    , list-t >=1.0.5.6 && <1.1
+    , massiv >=1.0.4.0 && <1.1
+    , mono-traversable >=1.0.15.3 && <1.1
+    , mtl >=2.3.1 && <2.4
+    , mutable-containers >=0.3.4.1 && <0.4
+    , mwc-random >=0.15.0.2 && <0.16
+    , parallel >=3.2.2.0 && <3.3
+    , pretty >=1.1.3.6 && <1.2
+    , primitive >=0.8.0.0 && <0.9
+    , process >=1.6.17.0 && <1.7
+    , profunctors >=5.6.2 && <5.7
+    , psqueues >=0.2.7.3 && <0.3
+    , random >=1.2.1.1 && <1.3
+    , reflection >=2.1.7 && <2.2
+    , safe-exceptions >=0.1.7.3 && <0.2
+    , scientific >=0.3.7.0 && <0.4
+    , semialign ==1.3.*
+    , semigroupoids >=6.0.0.1 && <6.1
+    , split >=0.2.3.5 && <0.3
+    , stm >=2.5.1.0 && <2.6
+    , strict ==0.5.*
+    , strict-lens >=0.4.0.3 && <0.5
+    , tagged >=0.8.7 && <0.9
+    , template-haskell ==2.19.0.0
+    , text >=2.0.2 && <2.1
+    , tf-random ==0.5.*
+    , these ==1.2.*
+    , these-lens >=1.0.1.3 && <1.1
+    , time >=1.12.2 && <1.13
+    , transformers >=0.6.1.0 && <0.7
+    , trifecta >=2.1.2 && <2.2
+    , unboxing-vector >=0.2.0.0 && <0.3
+    , unix ==2.7.3
+    , unordered-containers >=0.2.19.1 && <0.3
+    , utility-ht >=0.0.17 && <0.1
+    , vector >=0.13.0.0 && <0.14
+    , vector-algorithms >=0.9.0.1 && <0.10
+    , vector-stream >=0.1.0.0 && <0.2
+    , vector-th-unbox >=0.2.2 && <0.3
+    , xhtml >=3000.2.2.1 && <3000.3
   default-language: Haskell2010
 
 executable haskell-exe
@@ -70,38 +105,70 @@ executable haskell-exe
       app
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      QuickCheck >=2.13.2
-    , array >=0.5.4.0
-    , attoparsec >=0.13.2.3
-    , base >=4.7 && <5
-    , bytestring >=0.10.10.0
-    , containers >=0.6.2.1
-    , deepseq >=1.4.4.0
-    , extra >=1.7.1
-    , fgl >=5.7.0.2
-    , hashable >=1.3.0.0
-    , heaps >=0.3.6.1
-    , integer-logarithms >=1.0.3
-    , lens >=4.18.1
-    , massiv >=0.5.1.0
-    , mono-traversable >=1.0.15.1
-    , mtl >=2.2.2
-    , mutable-containers >=0.3.4
-    , mwc-random >=0.14.0.0
-    , parallel >=3.2.2.0
-    , parsec >=3.1.14.0
-    , primitive >=0.7.0.1
-    , psqueues >=0.2.7.2
-    , random >=1.1
-    , reflection >=2.1.5
-    , template-haskell >=2.15.0.0
-    , text >=1.2.4.0
-    , tf-random >=0.5
-    , transformers >=0.5.6.2
-    , unboxing-vector >=0.1.1.0
-    , unordered-containers >=0.2.10.0
-    , utility-ht >=0.0.15
-    , vector >=0.12.1.2
-    , vector-algorithms >=0.8.0.3
-    , vector-th-unbox >=0.2.1.7
+      adjunctions >=4.4.2 && <4.5
+    , array ==0.5.4.0
+    , base ==4.17.1.0
+    , bifunctors >=5.6.1 && <5.7
+    , binary >=0.8.9.1 && <0.9
+    , bitvec >=1.1.4.0 && <1.2
+    , bytestring >=0.11.4.0 && <0.12
+    , comonad >=5.0.8 && <5.1
+    , containers >=0.6.7 && <0.7
+    , deepseq ==1.4.8.0
+    , exceptions >=0.10.7 && <0.11
+    , extra >=1.7.13 && <1.8
+    , filepath >=1.4.2.2 && <1.4.99
+    , free ==5.2.*
+    , ghc-bignum ==1.3
+    , ghc-boot-th ==9.4.5
+    , ghc-prim ==0.9.0
+    , hashable >=1.4.2.0 && <1.5
+    , heaps ==0.4.*
+    , indexed-traversable >=0.1.2.1 && <0.2
+    , indexed-traversable-instances >=0.1.1.2 && <0.2
+    , integer-gmp ==1.1.*
+    , integer-logarithms >=1.0.3.1 && <1.1
+    , kan-extensions >=5.2.5 && <5.3
+    , lens >=5.2.2 && <5.3
+    , linear-base >=0.3.1 && <0.4
+    , list-t >=1.0.5.6 && <1.1
+    , massiv >=1.0.4.0 && <1.1
+    , mono-traversable >=1.0.15.3 && <1.1
+    , mtl >=2.3.1 && <2.4
+    , mutable-containers >=0.3.4.1 && <0.4
+    , mwc-random >=0.15.0.2 && <0.16
+    , parallel >=3.2.2.0 && <3.3
+    , pretty >=1.1.3.6 && <1.2
+    , primitive >=0.8.0.0 && <0.9
+    , process >=1.6.17.0 && <1.7
+    , profunctors >=5.6.2 && <5.7
+    , psqueues >=0.2.7.3 && <0.3
+    , random >=1.2.1.1 && <1.3
+    , reflection >=2.1.7 && <2.2
+    , safe-exceptions >=0.1.7.3 && <0.2
+    , scientific >=0.3.7.0 && <0.4
+    , semialign ==1.3.*
+    , semigroupoids >=6.0.0.1 && <6.1
+    , split >=0.2.3.5 && <0.3
+    , stm >=2.5.1.0 && <2.6
+    , strict ==0.5.*
+    , strict-lens >=0.4.0.3 && <0.5
+    , tagged >=0.8.7 && <0.9
+    , template-haskell ==2.19.0.0
+    , text >=2.0.2 && <2.1
+    , tf-random ==0.5.*
+    , these ==1.2.*
+    , these-lens >=1.0.1.3 && <1.1
+    , time >=1.12.2 && <1.13
+    , transformers >=0.6.1.0 && <0.7
+    , trifecta >=2.1.2 && <2.2
+    , unboxing-vector >=0.2.0.0 && <0.3
+    , unix ==2.7.3
+    , unordered-containers >=0.2.19.1 && <0.3
+    , utility-ht >=0.0.17 && <0.1
+    , vector >=0.13.0.0 && <0.14
+    , vector-algorithms >=0.9.0.1 && <0.10
+    , vector-stream >=0.1.0.0 && <0.2
+    , vector-th-unbox >=0.2.2 && <0.3
+    , xhtml >=3000.2.2.1 && <3000.3
   default-language: Haskell2010
