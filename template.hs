@@ -11,6 +11,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedRecordUpdate #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE CPP #-}
 
 {-# OPTIONS_GHC -Wno-unused-imports #-}
@@ -65,12 +66,14 @@ import           Data.Set (Set)
 import qualified Data.Set as Set
 import           Data.STRef (STRef, newSTRef, readSTRef, modifySTRef, writeSTRef)
 import           Data.Traversable (traverse, mapAccumR, mapAccumL)
+import           Data.Tuple.Extra (both)
 import           Data.Vector ((!), (!?))
 import qualified Data.Vector as V
 import qualified Data.Vector.Algorithms.Heap as VH
 import qualified Data.Vector.Mutable as MV
 import           Debug.Trace (trace)
 import           GHC.Records (HasField(..))
+import           Text.Printf (printf)
 
 ----------------
 ---- solver ----
@@ -80,7 +83,6 @@ main :: IO ()
 main = runInput $ do
     liftIO $ print $ solv ()
 
--- solv ::
 solv = undefined
 
 -----------------
@@ -91,7 +93,7 @@ solv = undefined
 debugging :: Bool
 #ifndef ATCODER
 debugging = True
-#elif
+#else
 debugging = False
 #endif
 debug :: Show a => String -> a -> a
@@ -156,9 +158,8 @@ readT4s1 n = V.replicateM n ((,,,) <$> readInt1 <*> readInt1 <*> readInt1 <*> re
 toCharVector :: ByteString -> V.Vector Char
 toCharVector = V.fromList . BS8.unpack
 ---- format
-yesno :: Bool -> [Char]
-yesno True = "Yes"
-yesno False = "No"
+yesno :: Bool -> Input ()
+yesno = liftIO . putStrLn . (!!) ["False", "True"] . fromEnum
 showCharMat :: Mat Char -> ByteString
 showCharMat = BS.init . BS8.unlines . map (BS8.unfoldr unconsV) . toList
 showIntMat :: Mat Int -> ByteString
@@ -169,6 +170,10 @@ showT :: Show a => (a, a) -> ByteString
 showT = BS8.pack . unwords . map show . t2l
 t2l :: (a, a) -> [a]
 t2l (a, b) = [a, b]
+printV ::  (a -> ByteString) -> V.Vector a -> Input ()
+printV tobs v = liftIO $ do
+    print v.len
+    BS8.putStr . BS8.unlines . toList $ V.map tobs v
 unconsV :: V.Vector a -> Maybe (a, V.Vector a)
 unconsV v
     | V.length v == 0 = Nothing
@@ -193,6 +198,8 @@ instance Range (V.Vector a) where
 instance Range (MV.MVector s a) where
     outOf v i = i<0 || MV.length v<=i
 
+instance HasField "len" (V.Vector a) Int where
+    getField = V.length
 instance HasField "len" [a] Int where
     getField = length
 
@@ -209,6 +216,17 @@ instance HasField "set" (MV.MVector s a) (Int -> a -> ST s ()) where
 
 instance HasField "modify" (MV.MVector s a) (Int -> (a -> a) -> ST s ()) where
     getField mv = flip $ MV.modify mv
+instance HasField "swap" (MV.MVector s a) (Int -> Int -> ST s ()) where
+    getField mv i j = do
+        iv <- mv.at i
+        jv <- mv.at j
+        mv.set i jv
+        mv.set j iv
+
+instance HasField "find" (V.Vector a) ((a -> Bool) -> Maybe a) where
+    getField v p = V.find p v
+instance HasField "findIndex" (V.Vector a) ((a -> Bool) -> Maybe Int) where
+    getField v p = V.findIndex p v
 
 -- Data
 ---- Heap
@@ -299,7 +317,7 @@ upperBound lower upper sat = go (lower-1) (upper+1) where
         | otherwise = if ok == upper+1 then Nothing else Just ok
 ---- cumulative
 instance HasField "cumulative" (V.Vector a) ((a -> a -> a) -> a -> V.Vector a) where
-    getField v f d = ($v) $ uncurry (flip V.snoc) . mapAccumL (\s a -> (f s a, s)) d
+    getField v f d = ($ v) $ uncurry (flip V.snoc) . mapAccumL (\s a -> (f s a, s)) d
 cumulative2d :: (a -> a -> a) -> a -> Mat a -> Mat a
 cumulative2d f d mat = uncurry (flip V.snoc) $ mapAccumL (\s a -> (V.zipWith f s a, s)) (V.replicate (V.length (hs!0)) d) hs where
     hs = V.map (\v -> v.cumulative f d) mat
@@ -326,7 +344,7 @@ instance HasField "same" (UnionFind s) (Int -> Int -> ST s Bool) where
 -- sameUF :: Int -> Int -> UnionFind s -> ST s Bool
 -- sameUF x y uf = (==) <$> rootUF x uf <*> rootUF y uf
 instance HasField "unite" (UnionFind s) (Int -> Int -> ST s Bool) where
-    getField uf@(UnionFind (par, rank, siz)) x y = do
+    getField uf@(UnionFind (par, rank, _)) x y = do
         (rx, ry) <- (,) <$> uf.root x <*> uf.root y
         if rx == ry then
             return False
@@ -369,27 +387,6 @@ quit = ContT . const . return
 ---- bits
 instance HasField "digits" Int VI where
     getField d = V.iterateN d (`shiftL`1) 1
----- BFS
-type BFS r q m a = ContT r (StateT (Seq q) m) a
-runBfsM :: (Monad m, Hashable q) => (q' -> BFS r q' m ()) -> r -> (q' -> q) -> Seq q' -> m r
-runBfsM bfs ir uq = evalStateT (runContT (go HSet.empty) (const (return ir))) where
-    -- go :: Monad m => HashSet q -> r -> BFS r q m r
-    go used = do
-        q <- State.get
-        case q of
-            Seq.Empty -> return ()
-            a :<| q'
-                | HSet.member (uq a) used -> State.put q' >> go used
-                | otherwise -> do
-                    State.put q'
-                    bfs a
-                    go (HSet.insert (uq a) used)
-runBfs :: Hashable q => (q' -> BFS r q' Identity ()) -> r -> (q' -> q) -> Seq q' -> r
-runBfs bfs r uq = runIdentity . runBfsM bfs r uq
-runBfsM_ :: (Monad m, Hashable q) => (q' -> BFS () q' m ()) -> (q' -> q) -> Seq q' -> m ()
-runBfsM_ bfs = runBfsM bfs ()
-queue :: Monad m => q -> BFS r q m ()
-queue !q = State.modify (:|> q)
 ---- Heap DP
 runHeapDP :: (Monad m, Ord a) => (a -> ContT r m [a]) -> [a] -> r -> m r
 runHeapDP f initial r = runContT (go (Set.fromList initial)) (const (return r)) where
@@ -398,3 +395,46 @@ runHeapDP f initial r = runContT (go (Set.fromList initial)) (const (return r)) 
             let (a, set') = Set.deleteFindMin set
             nexts <- f a
             go (foldr Set.insert set' nexts)
+
+-- search
+class PushPop pp where
+    type Elem pp
+    push :: Elem pp -> pp -> pp
+    pop :: pp -> Maybe (Elem pp, pp)
+searchM :: (PushPop pp, Hashable a, Monad m, Foldable f) => (Elem pp -> m (f (Elem pp))) -> (Elem pp -> a) -> pp -> m (HashSet a)
+searchM f uq = go HSet.empty where
+    p dup a pp = if HSet.member a dup then pp else push a pp
+    go dup pp = case pop pp of
+        Just (a, pp')
+            | HSet.member (uq a) dup -> go dup pp'
+            | otherwise -> f a >>= go (HSet.insert (uq a) dup) . foldr push pp'
+            -- | otherwise -> f a >>= go dup . foldr push pp'
+        Nothing -> return dup
+search :: (PushPop pp, Hashable a, Foldable f) => (Elem pp -> f (Elem pp)) -> (Elem pp -> a) -> pp -> HashSet a
+search f uq = runIdentity . searchM (return . f) uq
+searchFindM :: (Monad m, PushPop pp, Hashable (Elem pp), Foldable f) => (Elem pp -> m (Either b (f (Elem pp)))) -> pp -> m (Maybe b)
+searchFindM f ini = flip runContT (return . const Nothing) $ searchM f' id ini where
+    f' a = lift (f a) >>= \case
+        Right nx -> return nx
+        Left res -> ContT $ \_ -> return (Just res)
+searchFind :: (PushPop pp, Hashable (Elem pp), Foldable f) => (Elem pp -> Either b (f (Elem pp))) -> pp -> Maybe b
+searchFind f ini = runIdentity $ searchFindM (return . f) ini
+
+instance PushPop (Seq a) where
+    type Elem (Seq a) = a
+    push a sq = sq Seq.|> a
+    pop = \case
+        Seq.Empty -> Nothing
+        a :<| sq -> Just (a, sq)
+instance PushPop [a] where
+    type Elem [a] = a
+    push a st = a : st
+    pop = \case
+        [] -> Nothing
+        (x:xs) -> Just (x, xs)
+instance Ord a => PushPop (Set a) where
+    type Elem (Set a) = a
+    push = Set.insert
+    pop st
+        | Set.null st = Nothing
+        | otherwise = Just $ Set.deleteFindMax st
