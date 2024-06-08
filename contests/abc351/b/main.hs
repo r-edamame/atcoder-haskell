@@ -23,7 +23,7 @@ module Main (main) where
 
 import           Control.Applicative ((<|>))
 import           Control.Lens ((.~), (%~), _1, _2, _3)
-import           Control.Monad (replicateM, forM_, when, foldM, filterM)
+import           Control.Monad (replicateM, forM_, when, foldM, filterM, join)
 import           Control.Monad.Cont.Class (MonadCont(callCC))
 import           Control.Monad.Extra (whenM)
 import           Control.Monad.IO.Class (MonadIO(liftIO))
@@ -78,10 +78,15 @@ import           GHC.Records (HasField(..))
 
 main :: IO ()
 main = runInput $ do
-    liftIO $ print $ solv ()
+    n <- readInt
+    mata <- join <$> readCharMat n n
+    matb <- join <$> readCharMat n n
+    let (x, y) = solv n mata matb
+    liftIO $ BS8.putStrLn (showT (y+1, x+1))
 
--- solv ::
-solv = undefined
+solv :: Int -> VC -> VC -> (Int, Int)
+solv n mata matb = (diffAt `mod` n, diffAt `div` n) where
+    diffAt = fromJust $ (V.zip mata matb).findIndex (uncurry (/=))
 
 -----------------
 ---- library ----
@@ -91,7 +96,7 @@ solv = undefined
 debugging :: Bool
 #ifndef ATCODER
 debugging = True
-#elif
+#else
 debugging = False
 #endif
 debug :: Show a => String -> a -> a
@@ -153,7 +158,7 @@ readT4s :: Int -> Input (V.Vector (Int, Int, Int, Int))
 readT4s n = V.replicateM n ((,,,) <$> readInt <*> readInt <*> readInt <*> readInt)
 readT4s1 :: Int -> Input (V.Vector (Int, Int, Int, Int))
 readT4s1 n = V.replicateM n ((,,,) <$> readInt1 <*> readInt1 <*> readInt1 <*> readInt1)
-toCharVector :: ByteString -> V.Vector Char
+toCharVector :: ByteString -> VC
 toCharVector = V.fromList . BS8.unpack
 ---- format
 yesno :: Bool -> [Char]
@@ -209,6 +214,9 @@ instance HasField "set" (MV.MVector s a) (Int -> a -> ST s ()) where
 
 instance HasField "modify" (MV.MVector s a) (Int -> (a -> a) -> ST s ()) where
     getField mv = flip $ MV.modify mv
+
+instance HasField "findIndex" (V.Vector a) ((a -> Bool) -> Maybe Int) where
+    getField v p = V.findIndex p v
 
 -- Data
 ---- Heap
@@ -299,7 +307,7 @@ upperBound lower upper sat = go (lower-1) (upper+1) where
         | otherwise = if ok == upper+1 then Nothing else Just ok
 ---- cumulative
 instance HasField "cumulative" (V.Vector a) ((a -> a -> a) -> a -> V.Vector a) where
-    getField v f d = ($v) $ uncurry (flip V.snoc) . mapAccumL (\s a -> (f s a, s)) d
+    getField v f d = ($ v) $ uncurry (flip V.snoc) . mapAccumL (\s a -> (f s a, s)) d
 cumulative2d :: (a -> a -> a) -> a -> Mat a -> Mat a
 cumulative2d f d mat = uncurry (flip V.snoc) $ mapAccumL (\s a -> (V.zipWith f s a, s)) (V.replicate (V.length (hs!0)) d) hs where
     hs = V.map (\v -> v.cumulative f d) mat
@@ -326,7 +334,7 @@ instance HasField "same" (UnionFind s) (Int -> Int -> ST s Bool) where
 -- sameUF :: Int -> Int -> UnionFind s -> ST s Bool
 -- sameUF x y uf = (==) <$> rootUF x uf <*> rootUF y uf
 instance HasField "unite" (UnionFind s) (Int -> Int -> ST s Bool) where
-    getField uf@(UnionFind (par, rank, siz)) x y = do
+    getField uf@(UnionFind (par, rank, _)) x y = do
         (rx, ry) <- (,) <$> uf.root x <*> uf.root y
         if rx == ry then
             return False

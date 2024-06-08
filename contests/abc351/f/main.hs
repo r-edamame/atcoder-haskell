@@ -91,7 +91,7 @@ solv = undefined
 debugging :: Bool
 #ifndef ATCODER
 debugging = True
-#elif
+#else
 debugging = False
 #endif
 debug :: Show a => String -> a -> a

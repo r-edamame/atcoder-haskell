@@ -78,10 +78,12 @@ import           GHC.Records (HasField(..))
 
 main :: IO ()
 main = runInput $ do
+    (h, w) <- readT
+    mat <- readCharMat w h
     liftIO $ print $ solv ()
 
--- solv ::
-solv = undefined
+solv :: Int -> Int -> Mat Char -> Int
+solv w h mat =
 
 -----------------
 ---- library ----
@@ -91,7 +93,7 @@ solv = undefined
 debugging :: Bool
 #ifndef ATCODER
 debugging = True
-#elif
+#else
 debugging = False
 #endif
 debug :: Show a => String -> a -> a
@@ -299,7 +301,7 @@ upperBound lower upper sat = go (lower-1) (upper+1) where
         | otherwise = if ok == upper+1 then Nothing else Just ok
 ---- cumulative
 instance HasField "cumulative" (V.Vector a) ((a -> a -> a) -> a -> V.Vector a) where
-    getField v f d = ($v) $ uncurry (flip V.snoc) . mapAccumL (\s a -> (f s a, s)) d
+    getField v f d = ($ v) $ uncurry (flip V.snoc) . mapAccumL (\s a -> (f s a, s)) d
 cumulative2d :: (a -> a -> a) -> a -> Mat a -> Mat a
 cumulative2d f d mat = uncurry (flip V.snoc) $ mapAccumL (\s a -> (V.zipWith f s a, s)) (V.replicate (V.length (hs!0)) d) hs where
     hs = V.map (\v -> v.cumulative f d) mat
@@ -326,7 +328,7 @@ instance HasField "same" (UnionFind s) (Int -> Int -> ST s Bool) where
 -- sameUF :: Int -> Int -> UnionFind s -> ST s Bool
 -- sameUF x y uf = (==) <$> rootUF x uf <*> rootUF y uf
 instance HasField "unite" (UnionFind s) (Int -> Int -> ST s Bool) where
-    getField uf@(UnionFind (par, rank, siz)) x y = do
+    getField uf@(UnionFind (par, rank, _)) x y = do
         (rx, ry) <- (,) <$> uf.root x <*> uf.root y
         if rx == ry then
             return False

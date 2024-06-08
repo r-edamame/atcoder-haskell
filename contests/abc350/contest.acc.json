@@ -1,0 +1,86 @@
+{
+  "contest": {
+    "id": "abc350",
+    "title": "AtCoder Beginner Contest 350",
+    "url": "https://atcoder.jp/contests/abc350"
+  },
+  "tasks": [
+    {
+      "id": "abc350_a",
+      "label": "A",
+      "title": "Past ABCs",
+      "url": "https://atcoder.jp/contests/abc350/tasks/abc350_a",
+      "directory": {
+        "path": "a",
+        "testdir": "test",
+        "submit": "abc350_a.hs"
+      }
+    },
+    {
+      "id": "abc350_b",
+      "label": "B",
+      "title": "Dentist Aoki",
+      "url": "https://atcoder.jp/contests/abc350/tasks/abc350_b",
+      "directory": {
+        "path": "b",
+        "testdir": "test",
+        "submit": "abc350_b.hs"
+      }
+    },
+    {
+      "id": "abc350_c",
+      "label": "C",
+      "title": "Sort",
+      "url": "https://atcoder.jp/contests/abc350/tasks/abc350_c",
+      "directory": {
+        "path": "c",
+        "testdir": "test",
+        "submit": "abc350_c.hs"
+      }
+    },
+    {
+      "id": "abc350_d",
+      "label": "D",
+      "title": "New Friends",
+      "url": "https://atcoder.jp/contests/abc350/tasks/abc350_d",
+      "directory": {
+        "path": "d",
+        "testdir": "test",
+        "submit": "abc350_d.hs"
+      }
+    },
+    {
+      "id": "abc350_e",
+      "label": "E",
+      "title": "Toward 0",
+      "url": "https://atcoder.jp/contests/abc350/tasks/abc350_e",
+      "directory": {
+        "path": "e",
+        "testdir": "test",
+        "submit": "abc350_e.hs"
+      }
+    },
+    {
+      "id": "abc350_f",
+      "label": "F",
+      "title": "Transpose",
+      "url": "https://atcoder.jp/contests/abc350/tasks/abc350_f",
+      "directory": {
+        "path": "f",
+        "testdir": "test",
+        "submit": "abc350_f.hs"
+      }
+    },
+    {
+      "id": "abc350_g",
+      "label": "G",
+      "title": "Mediator",
+      "url": "https://atcoder.jp/contests/abc350/tasks/abc350_g",
+      "directory": {
+        "path": "g",
+        "testdir": "test",
+        "submit": "abc350_g.hs"
+      }
+    }
+  ]
+}
