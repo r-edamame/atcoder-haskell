@@ -13,6 +13,8 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE GADTs #-}
 
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 {-# OPTIONS_GHC -Wno-unused-local-binds #-}
@@ -39,6 +41,8 @@ import           Control.Monad.Trans.Cont (ContT(ContT, runContT), evalContT, Co
 import           Control.Monad.Trans.Maybe (MaybeT(MaybeT, runMaybeT))
 import           Control.Monad.Writer.Class as Writer
 import           Control.Monad.Writer.Strict (WriterT(runWriterT), execWriterT, Writer, runWriter, execWriter)
+import qualified Data.Array.MArray as MA
+import qualified Data.Array.ST as STA
 import qualified Data.Bifunctor as BF
 import           Data.Bits (shiftL, shiftR, (.&.), (.|.), xor)
 import           Data.ByteString (ByteString)
@@ -55,6 +59,7 @@ import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HMap
 import           Data.HashSet (HashSet)
 import qualified Data.HashSet as HSet
+import           Data.Ix (Ix(..))
 import qualified Data.List as L
 import qualified Data.List.Extra as L
 import           Data.Map.Strict (Map)
@@ -71,6 +76,7 @@ import           Data.Vector ((!), (!?))
 import qualified Data.Vector as V
 import qualified Data.Vector.Algorithms.Heap as VH
 import qualified Data.Vector.Mutable as MV
+import           Data.Word (Word64)
 import           Debug.Trace (trace)
 import           GHC.Records (HasField(..))
 import           Text.Printf (printf)
@@ -81,9 +87,26 @@ import           Text.Printf (printf)
 
 main :: IO ()
 main = runInput $ do
-    liftIO $ print $ solv ()
+    (h, w) <- readT
+    m <- readInt
+    qs <- V.replicateM m $ (,,) <$> readInt <*> readInt <*> readInt
+    printV showT $ solv h w m qs
 
-solv = undefined
+solv :: Int -> Int -> Int -> V.Vector (Int, Int, Int) -> V.Vector (Int, Int)
+solv h w m qs = go Set.empty Set.empty HMap.empty (reverse . toList $ qs) where
+    go _ _ cnts [] =
+        let
+            ws = HMap.toList cnts
+            total = sum . map snd $ ws
+            d = h * w - total
+        in V.modify (VH.sortBy compare) . V.filter ((/=0) . snd) . V.fromList . HMap.toList $ HMap.alter (Just . maybe d (+d)) 0 cnts
+    go rs cs cnts ((1, a, x):qs')
+        | Set.member a rs = go rs cs cnts qs'
+        | otherwise = let d = w - Set.size cs in go (Set.insert a rs) cs (HMap.alter (Just . maybe d (+d)) x cnts) qs'
+    go rs cs cnts ((2, a, x):qs')
+        | Set.member a cs = go rs cs cnts qs'
+        | otherwise = let d = h - Set.size rs in go rs (Set.insert a cs) (HMap.alter (Just . maybe d (+d)) x cnts) qs'
+    go _ _ _ _ = undefined
 
 -----------------
 ---- library ----
@@ -159,7 +182,7 @@ toCharVector :: ByteString -> V.Vector Char
 toCharVector = V.fromList . BS8.unpack
 ---- format
 yesno :: Bool -> Input ()
-yesno = liftIO . putStrLn . (!!) ["False", "True"] . fromEnum
+yesno = liftIO . putStrLn . (!!) ["No", "Yes"] . fromEnum
 showCharMat :: Mat Char -> ByteString
 showCharMat = BS.init . BS8.unlines . map (BS8.unfoldr unconsV) . toList
 showIntMat :: Mat Int -> ByteString
@@ -227,6 +250,11 @@ instance HasField "find" (V.Vector a) ((a -> Bool) -> Maybe a) where
     getField v p = V.find p v
 instance HasField "findIndex" (V.Vector a) ((a -> Bool) -> Maybe Int) where
     getField v p = V.findIndex p v
+
+instance HasField "len" ByteString Int where
+    getField = BS8.length
+instance HasField "substr" ByteString (Int -> Int -> ByteString) where
+    getField bs i j = BS8.drop i (BS8.take j bs)
 
 -- Data
 ---- Heap
@@ -408,17 +436,16 @@ searchM f uq = go HSet.empty where
         Just (a, pp')
             | HSet.member (uq a) dup -> go dup pp'
             | otherwise -> f a >>= go (HSet.insert (uq a) dup) . foldr push pp'
-            -- | otherwise -> f a >>= go dup . foldr push pp'
         Nothing -> return dup
 search :: (PushPop pp, Hashable a, Foldable f) => (Elem pp -> f (Elem pp)) -> (Elem pp -> a) -> pp -> HashSet a
 search f uq = runIdentity . searchM (return . f) uq
-searchFindM :: (Monad m, PushPop pp, Hashable (Elem pp), Foldable f) => (Elem pp -> m (Either b (f (Elem pp)))) -> pp -> m (Maybe b)
-searchFindM f ini = flip runContT (return . const Nothing) $ searchM f' id ini where
+searchFindM :: (Monad m, PushPop pp, Hashable a, Foldable f) => (Elem pp -> m (Either b (f (Elem pp)))) -> (Elem pp -> a) -> pp -> m (Maybe b)
+searchFindM f uq ini = flip runContT (return . const Nothing) $ searchM f' uq ini where
     f' a = lift (f a) >>= \case
         Right nx -> return nx
         Left res -> ContT $ \_ -> return (Just res)
-searchFind :: (PushPop pp, Hashable (Elem pp), Foldable f) => (Elem pp -> Either b (f (Elem pp))) -> pp -> Maybe b
-searchFind f ini = runIdentity $ searchFindM (return . f) ini
+searchFind :: (PushPop pp, Hashable a, Foldable f) => (Elem pp -> Either b (f (Elem pp))) -> (Elem pp -> a) -> pp -> Maybe b
+searchFind f uq ini = runIdentity $ searchFindM (return . f) uq ini
 
 instance PushPop (Seq a) where
     type Elem (Seq a) = a
@@ -438,3 +465,103 @@ instance Ord a => PushPop (Set a) where
     pop st
         | Set.null st = Nothing
         | otherwise = Just $ Set.deleteFindMax st
+
+-- DP
+class Semiring r where
+    srzero :: r
+    srone :: r
+    srplus :: r -> r -> r
+    srmul :: r -> r -> r
+
+newtype MaxPlus = MaxPlus Int deriving (Eq, Ord)
+instance Semiring MaxPlus where
+    srzero = MaxPlus minBound
+    srone = MaxPlus 0
+    srplus (MaxPlus x) (MaxPlus y) = MaxPlus (max x y)
+    srmul (MaxPlus x) (MaxPlus y) = MaxPlus (x + y)
+
+instance Semiring Bool where
+    srzero = False
+    srone = True
+    srplus = (||)
+    srmul = (&&)
+
+dp :: forall r i. (Semiring r, Ix i, Eq r) => [i] -> (i, i) -> (i -> Maybe r) -> (i -> [(r, i)]) -> r
+dp target rng isTrivial subproblems = runST $ do
+    table <- MA.newArray rng srzero
+    foldl srplus srzero <$> traverse (go table) target
+    where
+        go :: forall s. STA.STArray s i r -> i -> ST s r
+        go table i
+            | Just a <- isTrivial i = return a
+            | otherwise = do
+                v <- MA.readArray table i
+                if v /= srzero then
+                    return v
+                else do
+                    a <- foldl srplus srzero <$> traverse (\(s, i') -> srmul s <$> go table i') (subproblems i)
+                    MA.writeArray table i a
+                    return a
+
+-- mint
+mintMod :: Word64
+mintMod = 998244353
+mint :: Word64 -> Mint
+mint = Mint . (`mod` mintMod)
+newtype Mint = Mint Word64 deriving (Eq, Ord)
+instance Num Mint where
+    (Mint m) + (Mint n) = Mint $ (m + n) `mod` mintMod
+    (Mint m) * (Mint n) = Mint $ (m * n) `mod` mintMod
+    signum _ = 1
+    abs m = m
+    fromInteger = mint . fromIntegral
+    negate (Mint m) = Mint (mintMod - m)
+instance Show Mint where
+    show (Mint m) = show m
+
+-- Segment Tree
+data Seg a where
+    SegNode :: Int -> a -> (Seg a) -> (Seg a) -> Seg a
+    SegLeaf :: a -> Seg a
+least2pow :: Int -> Int
+least2pow n = head . filter (n<=) $ iterate (*2) 1
+instance HasField "len" (Seg a) Int where
+    getField (SegLeaf _) = 1
+    getField (SegNode l _ _ _) = l
+instance HasField "value" (Seg a) a where
+    getField (SegLeaf a) = a
+    getField (SegNode _ a _ _) = a
+segMk :: Monoid m => [m] -> Seg m
+segMk xs = mk (map SegLeaf (xs ++ replicate (least2pow l - l) mempty)) where
+    l = length xs
+    mk [s] = s
+    mk ss = mk (gp ss)
+    gp [] = []
+    gp (a:b:s) = SegNode (a.len * 2) (a.value <> b.value) a b : gp s
+    gp _ = undefined
+segDump :: (a -> String) -> Seg a -> [String]
+segDump sh (SegLeaf a) = [sh a]
+segDump sh (SegNode _ a cl cr) = sh a : zipWith (\a b -> a ++ " " ++ b) (segDump sh cl) (segDump sh cr)
+segPut :: Monoid a => Seg a -> Int -> a -> Seg a
+segPut seg i a = segMod seg i (const a)
+segMod :: Monoid a => Seg a -> Int -> (a -> a) -> Seg a
+segMod (SegLeaf a) _ f = SegLeaf (f a)
+segMod (SegNode ln _ cl cr) i f
+    | i .&. (ln`shiftR`1) == 0 = let cl' = segMod cl i f in SegNode ln (cl'.value <> cr.value) cl' cr
+    | otherwise = let cr' = segMod cr i f in SegNode ln (cl.value <> cr'.value) cl cr'
+segGet :: Seg a -> Int -> a
+segGet (SegLeaf a) _ = a
+segGet (SegNode ln _ cl cr) i
+    | i .&. (ln`shiftR`1) == 0 = segGet cl i
+    | otherwise = segGet cr i
+segSum :: Monoid a => Seg a -> Int -> Int -> a
+segSum (SegLeaf a) _ _ = a
+segSum (SegNode ln a cl cr) l r
+    | r-l == ln = a
+    | ls /= rs = segSum cl l (rs*hl) <> segSum cr (rs*hl) r
+    | even ls = segSum cl l r
+    | otherwise = segSum cr l r
+    where
+        hl = ln`div`2
+        ls = l`div`hl
+        rs = (r-1)`div`hl

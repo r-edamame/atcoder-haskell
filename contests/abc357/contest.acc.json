@@ -1,0 +1,86 @@
+{
+  "contest": {
+    "id": "abc357",
+    "title": "SuntoryProgrammingContest2024（AtCoder Beginner Contest 357）",
+    "url": "https://atcoder.jp/contests/abc357"
+  },
+  "tasks": [
+    {
+      "id": "abc357_a",
+      "label": "A",
+      "title": "Sanitize Hands",
+      "url": "https://atcoder.jp/contests/abc357/tasks/abc357_a",
+      "directory": {
+        "path": "a",
+        "testdir": "test",
+        "submit": "abc357_a.hs"
+      }
+    },
+    {
+      "id": "abc357_b",
+      "label": "B",
+      "title": "Uppercase and Lowercase",
+      "url": "https://atcoder.jp/contests/abc357/tasks/abc357_b",
+      "directory": {
+        "path": "b",
+        "testdir": "test",
+        "submit": "abc357_b.hs"
+      }
+    },
+    {
+      "id": "abc357_c",
+      "label": "C",
+      "title": "Sierpinski carpet",
+      "url": "https://atcoder.jp/contests/abc357/tasks/abc357_c",
+      "directory": {
+        "path": "c",
+        "testdir": "test",
+        "submit": "abc357_c.hs"
+      }
+    },
+    {
+      "id": "abc357_d",
+      "label": "D",
+      "title": "88888888",
+      "url": "https://atcoder.jp/contests/abc357/tasks/abc357_d",
+      "directory": {
+        "path": "d",
+        "testdir": "test",
+        "submit": "abc357_d.hs"
+      }
+    },
+    {
+      "id": "abc357_e",
+      "label": "E",
+      "title": "Reachability in Functional Graph",
+      "url": "https://atcoder.jp/contests/abc357/tasks/abc357_e",
+      "directory": {
+        "path": "e",
+        "testdir": "test",
+        "submit": "abc357_e.hs"
+      }
+    },
+    {
+      "id": "abc357_f",
+      "label": "F",
+      "title": "Two Sequence Queries",
+      "url": "https://atcoder.jp/contests/abc357/tasks/abc357_f",
+      "directory": {
+        "path": "f",
+        "testdir": "test",
+        "submit": "abc357_f.hs"
+      }
+    },
+    {
+      "id": "abc357_g",
+      "label": "G",
+      "title": "Stair-like Grid",
+      "url": "https://atcoder.jp/contests/abc357/tasks/abc357_g",
+      "directory": {
+        "path": "g",
+        "testdir": "test",
+        "submit": "abc357_g.hs"
+      }
+    }
+  ]
+}
