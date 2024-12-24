@@ -49,6 +49,7 @@ import qualified Data.Array.MArray as MA
 import qualified Data.Array.ST as STA
 import qualified Data.Bifunctor as BF
 import           Data.Bits (shiftL, shiftR, (.&.), (.|.), xor)
+import           Data.Bool (bool)
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
@@ -57,7 +58,7 @@ import           Data.ByteString.Builder as BB
 import           Data.ByteString.Builder.Internal as BB
 import           Data.Char (intToDigit, digitToInt, isSpace, isDigit)
 import           Data.Functor.Identity (Identity(runIdentity))
-import           Data.Foldable (foldrM, foldlM, toList, traverse_, maximumBy, minimumBy)
+import           Data.Foldable (foldrM, foldlM, toList, traverse_, maximumBy, minimumBy, foldl')
 import           Data.Hashable (Hashable)
 import           Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HMap
@@ -78,6 +79,8 @@ import           Data.Traversable (traverse, mapAccumR, mapAccumL)
 import           Data.Tuple.Extra (both)
 import           Data.Vector ((!), (!?))
 import qualified Data.Vector as V
+import qualified Data.Vector.Unboxed as VU
+import qualified Data.Vector.Unboxed.Mutable as MVU
 import qualified Data.Vector.Algorithms.Heap as VH
 import qualified Data.Vector.Mutable as MV
 import           Data.Word (Word64)
@@ -89,6 +92,7 @@ import           Text.Printf (printf)
 
 
 main = runBuffered $ do
+    n <- readInt
     return ()
 
 
@@ -209,6 +213,21 @@ type VI = V.Vector Int
 type T = (Int, Int)
 type Mat a = V.Vector (V.Vector a)
 
+-- Vector with Ix
+data IxV i a = IxV (VU.Vector a) (i, i)
+fromListIxV rng l = IxV (VU.fromList (take (rangeSize rng) l)) rng
+instance (VU.Unbox a, Ix i) => HasField "at" (IxV i a) (i -> a) where
+    getField (IxV v rng) i = v VU.! (index rng i)
+
+data IxMV s i a = IxMV (MVU.MVector s a) (i, i)
+newIxMV rng a = IxMV <$> VU.thaw (VU.replicate (rangeSize rng) a) <*> pure rng
+instance (VU.Unbox a, Ix i) => HasField "at" (IxMV s i a) (i -> ST s a) where
+    getField (IxMV v rng) i = MVU.read v (index rng i)
+instance (VU.Unbox a, Ix i) => HasField "set" (IxMV s i a) (i -> a -> ST s ()) where
+    getField (IxMV v rng) i a = MVU.write v (index rng i) a
+instance (VU.Unbox a, Ix i) => HasField "freeze" (IxMV s i a) (ST s (IxV i a)) where
+    getField (IxMV v rng) = IxV <$> VU.freeze v <*> pure rng
+
 
 -- Dot Access Definitions
 instance HasField "len" (V.Vector a) Int where
@@ -244,6 +263,8 @@ instance HasField "findIndex" (V.Vector a) ((a -> Bool) -> Maybe Int) where
 instance HasField "intersperse" (V.Vector a) (a -> V.Vector a) where
     getField v a = V.generate (2*v.len - 1) (\i -> if even i then v.at (i`div`2) else a)
 
+instance HasField "at" ByteString (Int -> Char) where
+    getField = BS8.index
 instance HasField "len" ByteString Int where
     getField = BS8.length
 instance HasField "substr" ByteString (Int -> Int -> ByteString) where
@@ -320,19 +341,28 @@ class PushPop pp where
     type Elem pp
     push :: Elem pp -> pp -> pp
     pop :: pp -> Maybe (Elem pp, pp)
-searchM :: (PushPop pp, Hashable a, Monad m) => (Elem pp -> m [Elem pp]) -> (Elem pp -> a) -> pp -> m (HashSet a)
-searchM f uq = go HSet.empty where
-    go passed pp = case pop pp of
-        Just (a, pp')
-            | HSet.member (uq a) passed -> go passed pp'
-            | otherwise -> f a >>= go (HSet.insert (uq a) passed) . foldr push pp'
-        Nothing -> return passed
-search :: (PushPop pp, Hashable a) => (Elem pp -> [Elem pp]) -> (Elem pp -> a) -> pp -> HashSet a
-search f uq = runIdentity . searchM (return . f) uq
-searchFindM :: (Monad m, PushPop pp, Hashable a) => (Elem pp -> m (Either b [Elem pp])) -> (Elem pp -> a) -> pp -> m (Maybe b)
-searchFindM f uq ini = fmap (either pure (const Nothing)) . runExceptT $! searchM (ExceptT . f) uq ini where
-searchFind :: (PushPop pp, Hashable a) => (Elem pp -> Either b [Elem pp]) -> (Elem pp -> a) -> pp -> Maybe b
-searchFind f uq ini = runIdentity $! searchFindM (return . f) uq ini
+searchM :: forall i m c pp. (Ix i, PrimMonad m, PushPop pp, VU.Unbox c, Eq c) => IxMV (PrimState m) i c -> (Elem pp -> m [Elem pp]) -> (Elem pp -> (i, c)) -> pp -> m ()
+searchM tbl@(IxMV _ rng) f ix ini = do
+    go tbl ini
+    where
+    go tbl pp = case pop pp of
+        Nothing -> pure ()
+        Just (e, pp') -> do
+            let (i, c) = ix e
+            d <- liftPrim $ tbl.at i
+            if d == c then go tbl pp'
+            else do
+                nx <- f e
+                liftPrim $ tbl.set i c
+                go tbl (foldl' (flip push) pp' $ filter (inRange rng . fst . ix) nx)
+searchM' :: forall i m pp. (Ix i, PrimMonad m, PushPop pp) => (i, i) -> (Elem pp -> m [Elem pp]) -> (Elem pp -> i) -> pp -> m ()
+searchM' rng f ix ini = do
+    tbl <- liftPrim @(ST (PrimState m)) $ newIxMV rng False
+    searchM tbl f ((,True) . ix) ini
+searchFindM :: (Ix i, PrimMonad m, PushPop pp) => (i, i) -> (Elem pp -> m (Either r [Elem pp])) -> (Elem pp -> i) -> pp -> m (Maybe r)
+searchFindM rng f ix = fmap (either Just (const Nothing)) . runExceptT . searchM' rng (ExceptT . f) ix
+searchFind :: (Ix i, PushPop pp) => (i, i) -> (Elem pp -> Either r [Elem pp]) -> (Elem pp -> i) -> pp -> Maybe r
+searchFind rng f ix ini = runST $ searchFindM rng (pure . f) ix ini
 
 instance PushPop (Seq a) where
     type Elem (Seq a) = a
